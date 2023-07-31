@@ -1,6 +1,7 @@
 ﻿using StandUpKitV2.Models;
 using System.Text.Json;
 using StandUpKitV2.Functions;
+using System.Text;
 
 namespace StandUpKitV2;
 
@@ -42,7 +43,9 @@ public class ClassTransformer
 
         transform.Path = Path.GetDirectoryName(classFile) ?? ".\\";
 
-        transform.CodeContent = string.Format("<![CDATA[{0}]]>", classContent);
+        var stringBytes = Encoding.UTF8.GetBytes(classContent);
+        transform.CodeContent = Convert.ToBase64String(stringBytes);
+
 
         string jsonFileName = Path.GetFileNameWithoutExtension(classFile) + ".json";
         jsonFileName = Path.Combine(transform.Path, jsonFileName);
@@ -51,9 +54,22 @@ public class ClassTransformer
 
         var jsonFile = JsonSerializer.Serialize<CustomTransform>(transform);
 
-        using (var writer = new StreamWriter(jsonFileName))
+        try
         {
-            writer.Write(jsonFile);
+            if (File.Exists(jsonFileName))
+            {
+                File.Delete(jsonFileName);
+            }
+
+            using (var writer = new StreamWriter(jsonFileName))
+            {
+                writer.Write(jsonFile);
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"I can't delete the file {jsonFileName}.");
+            Console.WriteLine(e.Message);
         }
     }
 
@@ -76,12 +92,21 @@ public class ClassTransformer
         }
 
         CustomTransform transform = JsonSerializer.Deserialize<CustomTransform>(jsonContent);
-
         string classFileName = Path.Combine(transform.Path, transform.Name);
 
-        using (var writer = new StreamWriter(classFileName))
+        try
         {
-            writer.Write(transform.CodeContent.Replace("<![CDATA[", "").Replace("]]>", ""));
+            var base64EncodedBytes = System.Convert.FromBase64String(transform.CodeContent);
+
+            using (var writer = new StreamWriter(classFileName))
+            {
+                writer.Write(Encoding.UTF8.GetString(base64EncodedBytes));
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"I can't decode the file {jsonFile}. Error: {e.Message}");
+            return;
         }
 
         Console.WriteLine($"*Burp*, Now I'll dump it here {classFileName}.");
